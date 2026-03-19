@@ -29,6 +29,10 @@
   git clone https://github.com/waegari/3_5_prompt_test.git
   cd 3_5_prompt_test
   ```
+- [ ] **패키지 설치**: Powershell에서 아래 명령어를 실행하여 GPU 가속이 포함된 라이브러리 설치
+  ```Powershell
+  pip install llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu124
+  ```
   
 ## 4. GGUF 형식의 LLM 준비
 - GGUF: Georgi Gerganov Unified Format

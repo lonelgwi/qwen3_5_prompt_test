@@ -2,6 +2,7 @@
 
 ## 1. 필수 프로그램 설치
 - [ ] **Python**: [다운로드](https://www.python.org/downloads/)
+  - 3.11 또는 3.12 권장
   - Powershell에서 아래 명령어로 이미 설치되어있는지 확인
     ```Powershell
     python -V
@@ -18,6 +19,7 @@
 ## 2. GPU 환경 세팅 (16GB VRAM 기준)
 - [ ] **NVIDIA 드라이버**: 최신 버전으로 [업데이트](https://www.nvidia.com/ko-kr/drivers/)
 - [ ] **CUDA Toolkit**: 공식 홈페이지에서 [다운로드](https://developer.nvidia.com/cuda-toolkit-archive) 및 설치
+  - RTX 50 세대 GPU인 경우 v12.6 권장
 - [ ] **cuDNN**: 
   - CUDA 12.x용 cuDNN [다운로드](https://developer.nvidia.com/cudnn) 후 설치
   - cuDNN 설치 경로 하위의 `bin`, `include`, `lib` 폴더 찾기
@@ -31,12 +33,17 @@
   git clone https://github.com/waegari/3_5_prompt_test.git
   cd 3_5_prompt_test
   ```
+- [ ] 가상환경(venv) 생성
+    ```
+        python -m venv venv
+        .\venv\Scripts\Activate
+    ```
 - [ ] **패키지 설치**: Powershell에서 아래 명령어를 실행하여 GPU 가속이 포함된 라이브러리 설치
+  - 2026. 3. 23. 기준, 공식 llama-cpp-python은 아직 Qwen 3.5를 지원하지 않으므로, [Qwen 3.5를 지원하는 fork 버전](https://github.com/JamePeng/llama-cpp-python)을 사용
   ```Powershell
-  $env:CMAKE_ARGS="-DGGML_CUDA=on"
-  $env:CMAKE_ARGS="-DGGML_CUDA=on -DCMAKE_CUDA_ARCHITECTURES=all"
+  $env:CMAKE_ARGS="-DGGML_CUDA=on -DCMAKE_CUDA_ARCHITECTURES=89 -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_SERVER=OFF"
   $env:FORCE_CMAKE="1"
-  pip install llama-cpp-python --upgrade --force-reinstall --no-cache-dir --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu124
+  pip install --no-cache-dir git+https://github.com/JamePeng/llama-cpp-python.git
   ```
   
 ## 4. GGUF 형식의 LLM 준비

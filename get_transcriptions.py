@@ -38,14 +38,23 @@ def get_simple_segments(segments):
     except Exception as err:
         print(f'에러 발생: {err}')
 
+# get_simple_transcriptions 함수를 아래 내용으로 교체
 def get_simple_transcriptions():
     response = get_transcriptions()
     result = []
     for i in response['items']:
-        result.append(get_simple_segments(i['transcription']['transcription']['segments']))
+        # 텍스트뿐만 아니라 job_id를 함께 묶어서 저장
+        item_data = {
+            "job_id": i['job_id'],
+            "content": get_simple_segments(i['transcription']['transcription']['segments'])
+        }
+        result.append(item_data)
     return result
 
+# get_simple_transcription(단수형) 함수도 구조를 맞춰줍니다
 def get_simple_transcription(job_id):
     response = get_transcription(job_id)
-    result = get_simple_segments(response['transcription']['transcription']['segments'])
-    return result
+    return {
+        "job_id": response['job_id'],
+        "content": get_simple_segments(response['transcription']['transcription']['segments'])
+    }

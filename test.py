@@ -1,11 +1,29 @@
 import os
 import time
+import json
+import re
 from llama_cpp import Llama
+
+from send_result import send_json_to_server
 from prompts import STT_SYSTEM_PROMPT, STT_INPUT_DATA, JOB_ID  # 프롬프트 파일 임포트 # 임포트 부분에 JOB_ID 추가
 
 time1 = time.time()
 
-# 1. 모델 경로 설정
+def json_parse(response):
+    raw_content = response["choices"][0]["message"]["content"]
+
+    parsed = None
+    try:
+        parsed = json.loads(raw_content)
+    except json.JSONDecodeError:
+        fenced = re.search(r"```(?:json)?\s*(\{[\s\S]*\})\s*```", raw_content)
+        if fenced:
+            try:
+                parsed = json.loads(fenced.group(1))
+            except json.JSONDecodeError:
+                parsed = None
+    return parsed, raw_content
+
 MODEL_PATH = "models/Qwen3.5-9B-Q8_0.gguf"
 
 if not os.path.exists(MODEL_PATH):
@@ -15,40 +33,141 @@ if not os.path.exists(MODEL_PATH):
 
 print(f"loading {MODEL_PATH} on the GPU")
 
-# 2. 모델 로드
 llm = Llama(
     model_path=MODEL_PATH,
     n_gpu_layers=-1,
-    n_ctx=60000,      # 모델이 한 번에 기억할 수 있는 최대 토큰 수
-    verbose=False     # 실행 로그 출력 (터미널 로그 중 'BLAS = 1'이 뜨면 GPU 가속 성공)
+    n_ctx=int(261344*0.75),      
+    verbose=False     
 )
 
 time2 = time.time()
 
 print("\n model loaded\n")
 
-# 3. 추론 (채팅 형식)
-response = llm.create_chat_completion(
-messages=[
-        {"role": "system", "content": STT_SYSTEM_PROMPT},
-        {"role": "user", "content": f"다음 텍스트를 처리해줘: \n{STT_INPUT_DATA}"}
-    ],
-    max_tokens=10240,
-    temperature=0.3 
-)
+def get_response(system_prompt, input_data, max_tokens=-1, temperature=0.1):
+    response = llm.create_chat_completion(
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f"다음 텍스트를 처리해줘: \n{input_data}"}
+        ],
+        max_tokens=max_tokens,
+        temperature=temperature,
+    )
+
+    parsed_data, raw_content = json_parse(response)
+    return parsed_data, raw_content, response['usage']
+
+def merge_reconstruction(target_list, new_item):
+    if not new_item or 'index' not in new_item:
+        return
+        
+    indices = [int(i) - 1 for i in new_item['index'].split('_')] 
+    
+    curr = target_list
+    for i in range(len(indices) - 1):
+        idx = indices[i]
+        while len(curr) <= idx:
+            curr.append({"index": str(idx+1), "subitems": []})
+        if "subitems" not in curr[idx]:
+            curr[idx]["subitems"] = []
+        curr = curr[idx]["subitems"]
+    
+    curr.append(new_item)
+
+
+final_reconstruction = []
+final_keywords = []
+current_overview = ""
+total_usage = {'prompt_tokens': 0, 'completion_tokens': 0, 'total_tokens': 0}
+
+# 1. 청크 나누기 전, 전체 데이터를 바탕으로 Overview 및 Keywords 생성
+print("Generating overview and keywords for the entire text...")
+
+# 전체 텍스트에 대해 한 번만 호출 (프롬프트는 동일하게 사용하거나 필요시 조정 가능)
+# 단, 모델의 n_ctx 범위 내에 STT_INPUT_DATA가 들어와야 합니다.
+summary_res, summary_raw, summary_usage = get_response(STT_SYSTEM_PROMPT, STT_INPUT_DATA)
+
+if summary_res:
+    final_keywords = summary_res.get('keywords', [])
+    current_overview = summary_res.get('overview', "")
+    
+    # 요약 단계에서 발생한 토큰 사용량 합산
+    total_usage['prompt_tokens'] += summary_usage['prompt_tokens']
+    total_usage['completion_tokens'] += summary_usage['completion_tokens']
+    total_usage['total_tokens'] += summary_usage['total_tokens']
+
+# 2. 본문(Reconstruction) 처리를 위한 청크 분할
+chunks = []
+start_idx = 0
+text_len = len(STT_INPUT_DATA)
+chunk_size = 5000
+
+while start_idx < text_len:
+    if text_len - start_idx <= chunk_size:
+        chunks.append(STT_INPUT_DATA[start_idx:])
+        break
+    
+    end_idx = start_idx + chunk_size
+    next_newline = STT_INPUT_DATA.find('\n', end_idx - 1)
+    
+    if next_newline == -1:
+        chunks.append(STT_INPUT_DATA[start_idx:])
+        break
+    else:
+        chunks.append(STT_INPUT_DATA[start_idx:next_newline + 1])
+        start_idx = next_newline + 1
+
+# 3. 청크별 추론 (Reconstruction만 추출)
+for i, chunk in enumerate(chunks):
+    print(f"inference (reconstruction): {i+1}/{len(chunks)}, len(chunk): {len(chunk)}")
+    
+    parsed_res, raw_content, usage = get_response(STT_SYSTEM_PROMPT, chunk)
+    
+    if parsed_res:
+        # 이 루프에서는 reconstruction 데이터만 수집합니다.
+        recon_data = parsed_res.get('reconstruction', [])
+        if isinstance(recon_data, list):
+            for item in recon_data:
+                merge_reconstruction(final_reconstruction, item)
+        elif isinstance(recon_data, dict):
+            merge_reconstruction(final_reconstruction, recon_data)
+
+    total_usage['prompt_tokens'] += usage['prompt_tokens']
+    total_usage['completion_tokens'] += usage['completion_tokens']
+    total_usage['total_tokens'] += usage['total_tokens']
+
+# 4. 최종 결과 조립
+final_result = {
+    "keywords": list(set(final_keywords)), # 중복 제거
+    "overview": current_overview,
+    "reconstruction": final_reconstruction
+}
 
 time3 = time.time()
 
-# 4. 결과 출력 부분 수정
 print("=====================================")
 print(f"작업 ID (Job ID): {JOB_ID}")  # 이 줄을 추가하세요
-print(f"모델 로드: {time2-time1:2f}초")
-print(f"추론: {time3-time2:2f}초")
-print(f"총 소요시간: {time3-time1:2f}초")
-print(f"입력 토큰: {response['usage']['prompt_tokens']}")
-print(f"출력 토큰: {response['usage']['completion_tokens']}")
-print(f"토큰 합계: {response['usage']['total_tokens']}")
+print(f"모델 로드: {time2-time1:.2f}초")
+print(f"추론: {time3-time2:.2f}초")
+print(f"총 소요시간: {time3-time1:.2f}초")
+print(f"입력 토큰: {total_usage['prompt_tokens']}")
+print(f"출력 토큰: {total_usage['completion_tokens']}")
+print(f"토큰 합계: {total_usage['total_tokens']}")
 print("-------------------------------------")
 print("AI 분석 결과 (JSON):")
-print(response["choices"][0]["message"]["content"])
+print(json.dumps(final_result, ensure_ascii=False, indent=2))
 print("=====================================")
+
+
+# main_task.py (요약 실행 파일)
+from send_result import send_json_to_server # 작성하신 코드를 import
+
+# 1. 작업 식별자 결정 (예: 20260406_001)
+current_job_id = "2026040610264350_5000" 
+
+
+# 3. 서버로 전송
+success = send_json_to_server(final_result, current_job_id)
+
+if success:
+    print("서버 저장 완료")

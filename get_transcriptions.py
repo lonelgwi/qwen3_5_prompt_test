@@ -44,9 +44,12 @@ def get_simple_transcriptions():
     result = []
     for i in response['items']:
         # 텍스트뿐만 아니라 job_id를 함께 묶어서 저장
+        content = get_simple_segments(i['transcription']['transcription']['segments'])
+        
         item_data = {
             "job_id": i['job_id'],
-            "content": get_simple_segments(i['transcription']['transcription']['segments'])
+            "content": content,
+            "length": len(content),
         }
         result.append(item_data)
     return result

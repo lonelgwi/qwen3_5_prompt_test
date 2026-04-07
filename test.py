@@ -51,7 +51,7 @@ time2 = time.time()
 
 print("\n model loaded\n")
 
-def get_response(system_prompt, input_data, max_tokens=-1, temperature=0.1):
+def get_response(system_prompt, input_data, max_tokens=-1, temperature=0.7):
     response = llm.create_chat_completion(
         messages=[
             {"role": "system", "content": system_prompt},

@@ -10,6 +10,7 @@ raw_data = get_simple_transcriptions()[0]
 # raw_data = get_simple_transcription('2026032711584976')  # audio duration $\simeq$ 5000
 # raw_data = get_simple_transcription('2026032709563464')  # audio duration $\simeq$ 2500
 # raw_data = get_simple_transcription('2026032709493241')  # audio duration $\simeq$ 600
+# raw_data = get_simple_transcription('2026040714513343')  # transcript lines == 14
 
 # 2. 필요한 정보를 각각 변수에 담습니다
 JOB_ID = raw_data['job_id']
@@ -18,15 +19,18 @@ STT_INPUT_DATA = raw_data['content']
 def get_summarization_prompt(length:int) -> str:
     kw_cnt = max(2, round(10 * (math.log10(length) - 2)))
     prompt = f"""Analyze the following text and provide the output strictly in JSON format.
-[Task Requirements]
-1. Extract exactly {kw_cnt} core keywords from the text.
-2. Provide a brief 2-3 sentence overview/summary of the entire text.
-3. CRITICAL The output language MUST match the original language of the input text. (e.g., If the input is in Korean, the keywords and overview must be in Korean).
+[지시사항]
+1. 키워드: 텍스트에서 핵심 키워드 {kw_cnt}개를 추출할 것.
+2. 요약(Overview): 전체 내용을 2~3문장으로 요약할 것.
+   - **주의:** "이 텍스트는", "본 내용은", "증언에 따르면" 등의 불필요한 도입 문구를 절대 사용하지 마세요.
+   - **핵심 사건이나 주어부터 즉시 서술하세요.** (예: "인사검증 보고 체계의 허점이..."로 시작)
+   - 요약문은 텍스트에 대한 설명이 아닌, 텍스트가 담고 있는 '사실 관계' 그 자체를 주어로 삼아 기술할 것.
+3. 언어: 입력 텍스트의 언어와 동일한 언어로 출력할 것.
 
 [Output Format]
 {{
     "keywords": ["keyword1", "keyword2", ...],
-    "overview": "Your 2-3 sentence summary here."
+    "overview": "2-3 sentence summary here."
 }}
 """
     return prompt

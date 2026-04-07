@@ -2,6 +2,7 @@ import os
 import time
 import json
 import re
+from math import ceil, floor
 from llama_cpp import Llama
 
 from send_result import send_json_to_server
@@ -74,6 +75,12 @@ def merge_reconstruction(target_list, new_item):
     
     curr.append(new_item)
 
+def calc_chunk_size(base:int, text_length:int) -> int:
+    q = text_length / base
+    divisor = ceil(q) if q < 4 else floor(q)
+    chunk_size = ceil(text_length / divisor)
+    return chunk_size
+
 
 final_reconstruction = []
 final_keywords = []
@@ -100,7 +107,7 @@ if summary_res:
 chunks = []
 start_idx = 0
 text_len = len(STT_INPUT_DATA)
-chunk_size = 5000
+chunk_size = calc_chunk_size(5000, text_len)
 
 while start_idx < text_len:
     if text_len - start_idx <= chunk_size:

@@ -34,7 +34,8 @@ def json_parse(response):
                 parsed = None
     return parsed, raw_content
 
-MODEL_PATH = "models/Qwen3.5-9B-Q8_0.gguf"
+MODEL_PATH = "models/gemma-4-26B-A4B-it-UD-Q4_K_M.gguf"
+#"models/Qwen3.5-9B-Q8_0.gguf"
 
 if not os.path.exists(MODEL_PATH):
     print(f"파일을 찾을 수 없습니다.")
@@ -46,7 +47,8 @@ print(f"loading {MODEL_PATH} on the GPU")
 llm = Llama(
     model_path=MODEL_PATH,
     n_gpu_layers=-1,
-    n_ctx=int(261344*0.75),      
+    n_ctx=int(261344*0.0625),   
+    # n_ctx=int(261344*0.75),
     verbose=False     
 )
 
@@ -233,7 +235,7 @@ current_job_id = JOB_ID
 
 
 # 3. 서버로 전송
-success = send_json_to_server(final_result, current_job_id)
+success = send_json_to_server(final_result, current_job_id + "_Gemma_4")
 
 if success:
     print("서버 저장 완료")

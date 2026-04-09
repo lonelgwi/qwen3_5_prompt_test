@@ -16,8 +16,13 @@ raw_data = get_simple_transcriptions()[0]
 JOB_ID = raw_data['job_id']
 STT_INPUT_DATA = raw_data['content']
 
+def keyword_count_for_length(length: int) -> int:
+    """전체 문자 수 length 기준으로 최종 키워드 개수(기존 공식과 동일)."""
+    return max(2, round(10 * (math.log10(length) - 2)))
+
+
 def get_summarization_prompt(length:int) -> str:
-    kw_cnt = max(2, round(10 * (math.log10(length) - 2)))
+    kw_cnt = keyword_count_for_length(length)
     prompt = f"""Analyze the following text and provide the output strictly in JSON format.
 [지시사항]
 1. 키워드: 텍스트에서 핵심 키워드 {kw_cnt}개를 추출할 것.
@@ -36,6 +41,30 @@ def get_summarization_prompt(length:int) -> str:
     return prompt
   
 SUMMARIZATION_PROMPT = get_summarization_prompt(raw_data['length'])
+
+
+def get_aggregation_prompt(target_keyword_count: int) -> str:
+    """
+    청크별로 뽑은 keywords / overview를 통합해 최종 결과 작성
+    target_keyword_count: 전체 원문 길이 기준으로 계산한 최종 키워드 개수
+    """
+    return f"""아래는 하나의 STT 원고를 여러 청크로 나누어 각 청크에서 추출한 키워드 목록과 부분 요약(overview)이다.
+이들을 통합하여 **하나의 JSON**으로 출력하라.
+
+[지시사항]
+1. 키워드: 후보들을 통합·중복 제거·동의어 정리한 뒤, **정확히 {target_keyword_count}개** 남겨라. (중요도 순)
+2. Overview: 부분 요약들을 바탕으로 전체 내용을 **2~3문장**으로 재구성하라. 같은 사건이 반복 서술되지 않게 압축하라.
+   - "이 텍스트는", "본 내용은" 등 불필요한 도입 문구 금지
+   - 핵심 사건·주어부터 바로 서술
+3. 언어: 입력에 사용된 언어와 동일한 언어로 출력
+
+[Output Format]
+{{
+    "keywords": ["keyword1", "keyword2", ...],
+    "overview": "2-3 sentence merged summary here."
+}}
+"""
+
 
 # AI의 페르소나와 분석 규칙
 RECONSTRUCTION_PROMPT = """

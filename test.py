@@ -56,14 +56,20 @@ time2 = time.time()
 
 print("\n model loaded\n")
 
+THINKING_MODE = False
+
 def get_response(system_prompt, input_data, max_tokens=-1, temperature=0.7):
+    think_tag = "/think" if THINKING_MODE else "/no_think"
+    user_content = f"다음 텍스트를 처리해줘: \n{input_data}\n{think_tag}"
+
     response = llm.create_chat_completion(
         messages=[
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"다음 텍스트를 처리해줘: \n{input_data}"}
+            {"role": "user", "content": user_content}
         ],
         max_tokens=max_tokens,
         temperature=temperature,
+        response_format={"type": "json_object"},
     )
 
     parsed_data, raw_content = json_parse(response)
@@ -239,7 +245,8 @@ with open(f"debug_{JOB_ID}.json", "w", encoding="utf-8") as f:
     json.dump(final_result, f, ensure_ascii=False, indent=2)
 
 # 3. 서버로 전송
-success = send_json_to_server(final_result, current_job_id + "_Gemma_4")
+model_tag = os.path.splitext(os.path.basename(MODEL_PATH))[0]
+success = send_json_to_server(final_result, current_job_id + f"_{model_tag}")
 
 if success:
     print("서버 저장 완료")

@@ -159,16 +159,21 @@ else:
         total_usage["completion_tokens"] += summary_usage["completion_tokens"]
         total_usage["total_tokens"] += summary_usage["total_tokens"]
 
-    target_kw = keyword_count_for_length(len(STT_INPUT_DATA))
-    agg_prompt = get_aggregation_prompt(target_kw)
-    agg_user = build_aggregation_user_input(partial_overviews, partial_keyword_lists)
-    merged_res, merged_raw, merged_usage = get_response(agg_prompt, agg_user, temperature=0.2)
-    if merged_res:
-        final_keywords = merged_res.get("keywords", []) or []
-        current_overview = merged_res.get("overview", "") or ""
-    total_usage["prompt_tokens"] += merged_usage["prompt_tokens"]
-    total_usage["completion_tokens"] += merged_usage["completion_tokens"]
-    total_usage["total_tokens"] += merged_usage["total_tokens"]
+    if len(chunks_for_long) == 1:
+        print("Single summarization chunk detected. Skipping aggregation.")
+        final_keywords = partial_keyword_lists[0] if partial_keyword_lists else []
+        current_overview = partial_overviews[0] if partial_overviews else ""
+    else:
+        target_kw = keyword_count_for_length(len(STT_INPUT_DATA))
+        agg_prompt = get_aggregation_prompt(target_kw)
+        agg_user = build_aggregation_user_input(partial_overviews, partial_keyword_lists)
+        merged_res, merged_raw, merged_usage = get_response(agg_prompt, agg_user, temperature=0.2)
+        if merged_res:
+            final_keywords = merged_res.get("keywords", []) or []
+            current_overview = merged_res.get("overview", "") or ""
+        total_usage["prompt_tokens"] += merged_usage["prompt_tokens"]
+        total_usage["completion_tokens"] += merged_usage["completion_tokens"]
+        total_usage["total_tokens"] += merged_usage["total_tokens"]
 
 if segment_count <= 15:
     # transcription 짧으면(15행 이하) 발화 내용 그대로 reconstruction 필드 채움

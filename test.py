@@ -56,11 +56,9 @@ time2 = time.time()
 
 print("\n model loaded\n")
 
-THINKING_MODE = False
 
 def get_response(system_prompt, input_data, max_tokens=-1, temperature=0.7):
-    think_tag = "/think" if THINKING_MODE else "/no_think"
-    user_content = f"다음 텍스트를 처리해줘: \n{input_data}\n{think_tag}"
+    user_content = f"다음 텍스트를 처리해줘: \n{input_data}"
 
     response = llm.create_chat_completion(
         messages=[
